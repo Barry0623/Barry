@@ -16,13 +16,7 @@ export const getActiveExams = async (): Promise<Exam[]> => {
 
     const response = await (notion as any).databases.query({
         database_id: EXAM_DB_ID,
-        filter: {
-            property: 'status',
-            select: {
-                equals: 'Active',
-            },
-        },
-    } as any);
+    });
 
     return response.results.map((page: any) => ({
         // ...
