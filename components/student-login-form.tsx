@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -17,19 +17,11 @@ import {
     FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Exam } from '@/types';
 
 type PublicExam = Omit<Exam, 'password'>;
 
 const formSchema = z.object({
-    examId: z.string().min(1, '請選擇測驗'),
     password: z.string().min(1, '請輸入密碼'),
     studentName: z.string().min(1, '請輸入姓名'),
     studentNumber: z.string().min(1, '請輸入學號'),
@@ -38,11 +30,18 @@ const formSchema = z.object({
 export function StudentLoginForm({ exams }: { exams: PublicExam[] }) {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
+    const [currentExam, setCurrentExam] = useState<PublicExam | null>(null);
+
+    // Auto-select the first available exam
+    useEffect(() => {
+        if (exams.length > 0) {
+            setCurrentExam(exams[0]);
+        }
+    }, [exams]);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            examId: '',
             password: '',
             studentName: '',
             studentNumber: '',
@@ -50,16 +49,21 @@ export function StudentLoginForm({ exams }: { exams: PublicExam[] }) {
     });
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
+        if (!currentExam) {
+            toast.error('目前沒有可用的測驗');
+            return;
+        }
+
         setIsLoading(true);
         try {
-            const result = await verifyExamPassword(values.examId, values.password);
+            const result = await verifyExamPassword(currentExam.id, values.password);
 
             if (result.success) {
                 sessionStorage.setItem('studentName', values.studentName);
                 sessionStorage.setItem('studentNumber', values.studentNumber);
 
                 toast.success('登入成功！正在進入測驗...');
-                router.push(`/quiz/${values.examId}`);
+                router.push(`/quiz/${currentExam.id}`);
             } else {
                 toast.error(result.message || '密碼錯誤');
             }
@@ -68,6 +72,16 @@ export function StudentLoginForm({ exams }: { exams: PublicExam[] }) {
         } finally {
             setIsLoading(false);
         }
+    }
+
+    if (!currentExam) {
+        return (
+            <div className="w-full max-w-md">
+                <div className="bg-zinc-900 rounded-2xl shadow-2xl p-8 border border-zinc-800 text-center">
+                    <p className="text-zinc-400">目前沒有可用的測驗</p>
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -80,43 +94,17 @@ export function StudentLoginForm({ exams }: { exams: PublicExam[] }) {
                     <p className="text-zinc-400 text-sm">
                         輸入您的資料開始測驗
                     </p>
+                    {/* Current Exam Name */}
+                    <div className="mt-4 px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                        <p className="text-emerald-400 text-sm font-medium">
+                            📝 {currentExam.title}
+                        </p>
+                    </div>
                 </div>
 
                 {/* Form */}
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                        {/* Exam Selection */}
-                        <FormField
-                            control={form.control}
-                            name="examId"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="text-zinc-300 text-sm font-medium">
-                                        選擇測驗
-                                    </FormLabel>
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white h-12 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent">
-                                                <SelectValue placeholder="請選擇測驗" />
-                                            </SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent className="bg-zinc-800 border-zinc-700">
-                                            {exams.map((exam) => (
-                                                <SelectItem
-                                                    key={exam.id}
-                                                    value={exam.id}
-                                                    className="text-white hover:bg-zinc-700 focus:bg-zinc-700"
-                                                >
-                                                    {exam.title}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <FormMessage className="text-red-400" />
-                                </FormItem>
-                            )}
-                        />
-
                         {/* Password */}
                         <FormField
                             control={form.control}
